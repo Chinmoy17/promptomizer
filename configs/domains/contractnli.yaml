@@ -1,0 +1,19 @@
+# ContractNLI Domain Configuration
+# Non-Disclosure Agreement corpus (977 tests, 95 documents)
+# Source: https://stanfordnlp.github.io/contract-nli/
+
+project:
+  domain: "contractnli"
+  description: "NDA contract NLI benchmark"
+
+data:
+  raw_dir: "data/raw/contractnli"
+  ground_truth_dir: "data/ground_truth"
+  ground_truth_file: "contractnli_qa.json"
+
+vector_store:
+  persist_path: "data/indices/contractnli_index"
+
+chunking:
+  chunk_size: 512
+  chunk_overlap: 50

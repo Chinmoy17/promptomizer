@@ -81,10 +81,42 @@ def load_yaml_config(config_path: str | Path) -> dict[str, Any]:
         return yaml.safe_load(f)
 
 
-def load_config() -> dict[str, Any]:
-    """Load and merge all configuration files."""
+VALID_DOMAINS = ["contractnli", "cuad", "maud", "privacy_qa"]
+
+
+def _deep_merge(base: dict, override: dict) -> dict:
+    """Recursively merge override into base dict."""
+    result = base.copy()
+    for key, value in override.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = _deep_merge(result[key], value)
+        else:
+            result[key] = value
+    return result
+
+
+def load_config(domain: str | None = None) -> dict[str, Any]:
+    """Load and merge configuration files.
+
+    Args:
+        domain: Optional domain name to overlay (e.g., 'cuad', 'maud').
+                If None, uses the domain set in configs/base.yaml.
+
+    Returns:
+        Merged config dict with keys 'base' and 'models'.
+    """
     base = load_yaml_config("configs/base.yaml")
     models = load_yaml_config("configs/models.yaml")
+
+    # Determine active domain
+    active_domain = domain or base.get("project", {}).get("domain")
+
+    if active_domain and active_domain in VALID_DOMAINS:
+        domain_path = PROJECT_ROOT / "configs" / "domains" / f"{active_domain}.yaml"
+        if domain_path.exists():
+            domain_cfg = load_yaml_config(domain_path)
+            base = _deep_merge(base, domain_cfg)
+
     return {"base": base, "models": models}
 
 

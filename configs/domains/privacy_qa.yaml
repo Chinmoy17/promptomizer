@@ -1,0 +1,19 @@
+# PrivacyQA Domain Configuration
+# Privacy Policy QA benchmark (194 tests, 7 documents)
+# Source: https://github.com/AbhilashaRavichander/PrivacyQA_EMNLP
+
+project:
+  domain: "privacy_qa"
+  description: "Privacy policy question answering benchmark"
+
+data:
+  raw_dir: "data/raw/privacy_qa"
+  ground_truth_dir: "data/ground_truth"
+  ground_truth_file: "privacy_qa_qa.json"
+
+vector_store:
+  persist_path: "data/indices/privacy_qa_index"
+
+chunking:
+  chunk_size: 512
+  chunk_overlap: 50

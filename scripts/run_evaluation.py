@@ -24,23 +24,26 @@ from src.systems.dspy_mipro import DSPyMIPRORAG, optimize_mipro
 from src.systems.langchain_rag import LangChainRAG
 
 
-def load_ground_truth(gt_dir: Path) -> list[dict]:
+def load_ground_truth(gt_dir: Path, gt_file: str) -> list[dict]:
     """Load ground truth Q&A pairs.
 
     Expects a JSON file with format:
     [{"question": "...", "answer": "..."}, ...]
     """
-    # Look for any JSON file in ground_truth dir
-    json_files = list(gt_dir.glob("*.json"))
-    if not json_files:
-        logger.error(f"No ground truth JSON files found in {gt_dir}")
-        return []
+    gt_path = gt_dir / gt_file
+    if not gt_path.exists():
+        # Fallback: find any JSON file
+        json_files = list(gt_dir.glob("*.json"))
+        if not json_files:
+            logger.error(f"No ground truth JSON files found in {gt_dir}")
+            return []
+        gt_path = json_files[0]
+        logger.warning(f"gt_file not found, falling back to {gt_path.name}")
 
-    gt_file = json_files[0]
-    with open(gt_file, encoding="utf-8") as f:
+    with open(gt_path, encoding="utf-8") as f:
         data = json.load(f)
 
-    logger.info(f"Loaded {len(data)} Q&A pairs from {gt_file.name}")
+    logger.info(f"Loaded {len(data)} Q&A pairs from {gt_path.name}")
     return data
 
 
@@ -74,9 +77,13 @@ def setup_dspy(config: dict):
     logger.info(f"DSPy configured with model: {model_cfg['model_name']}")
 
 
-def run_evaluation():
-    """Run full evaluation pipeline."""
-    config = load_config()
+def run_evaluation(domain: str | None = None):
+    """Run full evaluation pipeline.
+
+    Args:
+        domain: Domain name to evaluate (e.g., 'cuad'). If None, uses base.yaml default.
+    """
+    config = load_config(domain=domain)
     base = config["base"]
 
     # Setup
@@ -93,7 +100,8 @@ def run_evaluation():
 
     # Load ground truth
     gt_dir = PROJECT_ROOT / base["data"]["ground_truth_dir"]
-    gt_data = load_ground_truth(gt_dir)
+    gt_file = base["data"].get("ground_truth_file", "qa_pairs.json")
+    gt_data = load_ground_truth(gt_dir, gt_file)
     if not gt_data:
         logger.error("No ground truth data. Create Q&A pairs first.")
         return

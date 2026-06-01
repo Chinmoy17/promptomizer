@@ -3,7 +3,7 @@
 
 project:
   name: "promptomizer"
-  domain: "general"  # Change per dataset
+  domain: "contractnli"  # Options: contractnli | cuad | maud | privacy_qa
   seed: 42
 
 # --- Data Pipeline ---
@@ -12,6 +12,7 @@ data:
   processed_dir: "data/processed"
   index_dir: "data/indices"
   ground_truth_dir: "data/ground_truth"
+  ground_truth_file: "contractnli_qa.json"  # Overridden by domain config
 
   # Supported formats for ingestion
   supported_formats:

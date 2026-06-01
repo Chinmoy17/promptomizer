@@ -23,10 +23,16 @@ from src.data.indexer import build_faiss_index, save_index
 from src.data.ingest import ingest_directory
 
 
-def run_pipeline():
-    """Execute the full data pipeline."""
-    config = load_config()
+def run_pipeline(domain: str | None = None):
+    """Execute the full data pipeline.
+
+    Args:
+        domain: Domain name to process (e.g., 'cuad'). If None, uses base.yaml default.
+    """
+    config = load_config(domain=domain)
     base = config["base"]
+    active_domain = base.get("project", {}).get("domain", "default")
+    logger.info(f"Running pipeline for domain: {active_domain}")
 
     # Paths
     raw_dir = PROJECT_ROOT / base["data"]["raw_dir"]

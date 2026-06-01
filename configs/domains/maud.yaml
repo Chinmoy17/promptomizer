@@ -1,0 +1,19 @@
+# MAUD Domain Configuration
+# Merger Agreement Understanding Dataset (1676 tests, 150 documents)
+# Source: https://github.com/TheAtticusProject/maud
+
+project:
+  domain: "maud"
+  description: "M&A acquisition agreement understanding benchmark"
+
+data:
+  raw_dir: "data/raw/maud"
+  ground_truth_dir: "data/ground_truth"
+  ground_truth_file: "maud_qa.json"
+
+vector_store:
+  persist_path: "data/indices/maud_index"
+
+chunking:
+  chunk_size: 512
+  chunk_overlap: 50
