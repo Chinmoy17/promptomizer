@@ -1,0 +1,74 @@
+# PromptoMizer - Base Configuration
+# DSPy RAG Optimization & Evaluation Framework
+
+project:
+  name: "promptomizer"
+  domain: "general"  # Change per dataset
+  seed: 42
+
+# --- Data Pipeline ---
+data:
+  raw_dir: "data/raw"
+  processed_dir: "data/processed"
+  index_dir: "data/indices"
+  ground_truth_dir: "data/ground_truth"
+
+  # Supported formats for ingestion
+  supported_formats:
+    - ".pdf"
+    - ".docx"
+    - ".txt"
+    - ".json"
+    - ".md"
+
+chunking:
+  strategy: "recursive"  # recursive | fixed | semantic
+  chunk_size: 512        # tokens
+  chunk_overlap: 50      # tokens
+  tokenizer: "cl100k_base"  # tiktoken encoding
+
+embedding:
+  model: "text-embedding-3-small"
+  dimensions: 1536
+  batch_size: 100
+  provider: "openai"
+
+vector_store:
+  type: "faiss"
+  index_type: "flat_l2"  # flat_l2 | ivf | hnsw
+  persist_path: "data/indices/faiss_index"
+
+# --- Train/Test Split ---
+split:
+  train_ratio: 0.7
+  test_ratio: 0.3
+  stratify: false
+
+# --- Retrieval ---
+retrieval:
+  top_k: 5
+  score_threshold: null  # null = no threshold
+
+# --- Generation ---
+generation:
+  temperature: 0.0  # Deterministic
+  max_tokens: 1024
+
+# --- Evaluation ---
+evaluation:
+  metrics:
+    - "answer_accuracy"
+    - "context_relevance"
+    - "faithfulness"
+  judge_model: "gpt-4o"
+  judge_temperature: 0.0
+  score_levels: [0.00, 0.25, 0.50, 0.75, 1.00]
+  cache_results: true
+  cache_dir: "results/evaluations"
+
+# --- Visualization ---
+visualization:
+  output_dir: "results/figures"
+  format: "png"  # png | pdf | svg
+  dpi: 300
+  style: "seaborn-v0_8-whitegrid"

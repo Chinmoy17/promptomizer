@@ -1,0 +1,45 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+env/
+
+# Environment variables
+.env
+
+# Data artifacts (large files)
+data/raw/*
+data/processed/*
+data/indices/*
+!data/**/.gitkeep
+
+# Results & cache
+results/evaluations/*.json
+results/figures/*.png
+results/figures/*.pdf
+*.cache
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+
+# uv
+uv.lock
+
+.env
+
+.env/

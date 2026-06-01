@@ -1,0 +1,55 @@
+# Model configurations for RAG systems
+
+# Generation models
+generation_models:
+  gpt4o:
+    provider: "openai"
+    model_name: "gpt-4o"
+    temperature: 0.0
+    max_tokens: 1024
+    
+  gpt4o_mini:
+    provider: "openai"
+    model_name: "gpt-4o-mini"
+    temperature: 0.0
+    max_tokens: 1024
+
+  # Uncomment for local models via Ollama
+  # llama3:
+  #   provider: "ollama"
+  #   model_name: "llama3.1:70b"
+  #   temperature: 0.0
+  #   max_tokens: 1024
+  #   base_url: "http://localhost:11434"
+
+# Active model selection
+active_generation_model: "gpt4o"
+
+# Judge model (for evaluation)
+judge:
+  provider: "openai"
+  model_name: "gpt-4o"
+  temperature: 0.0
+  max_tokens: 512
+
+# Embedding model
+embedding:
+  provider: "openai"
+  model_name: "text-embedding-3-small"
+  dimensions: 1536
+
+# DSPy optimization settings
+optimization:
+  bootstrap_few_shot:
+    max_bootstrapped_demos: 4
+    max_labeled_demos: 8
+    max_rounds: 1
+    metric_threshold: 0.7
+
+  mipro_v2:
+    num_candidates: 10
+    num_trials: 20
+    max_bootstrapped_demos: 4
+    max_labeled_demos: 4
+    eval_kwargs:
+      num_threads: 4
