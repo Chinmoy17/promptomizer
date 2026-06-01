@@ -1,32 +1,32 @@
 """Dataset preparation script.
 
-Converts benchmark JSONs from data/data_source/ into:
-  1. data/raw/{dataset}/          — one .txt file per unique source document
-  2. data/ground_truth/{dataset}_qa.json — Q&A pairs for evaluation
+Generates ground truth Q&A files from benchmark JSONs in data/data_source/.
+The actual corpus documents (data/raw/{dataset}/) must already be present.
 
-Source format (each JSON):
+Only Q&A pairs whose source document exists in data/raw/{dataset}/ are included.
+Use --limit to cap the number of pairs (default: 25 for initial testing).
+
+Source JSON format:
     {
         "tests": [
             {
                 "query": "...",
                 "snippets": [
                     {"file_path": "dataset/doc.txt", "span": [...], "answer": "..."},
-                    ...
                 ]
             }
         ]
     }
 
 Run:
-    python scripts/prepare_datasets.py
-    python scripts/prepare_datasets.py --dataset cuad   # single dataset
+    python scripts/prepare_datasets.py                          # all datasets, 25 pairs each
+    python scripts/prepare_datasets.py --dataset cuad           # single dataset
+    python scripts/prepare_datasets.py --limit 0                # no limit (all pairs)
 """
 
 import argparse
 import json
-import re
 import sys
-from collections import defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -38,74 +38,80 @@ PROJECT_ROOT = Path(__file__).parent.parent
 DATASETS = ["contractnli", "cuad", "maud", "privacy_qa"]
 
 
-def sanitize_filename(name: str) -> str:
-    """Convert a file path string to a safe filename stem."""
-    # Take the basename, strip extension, replace unsafe chars
-    stem = Path(name).stem
-    stem = re.sub(r"[^\w\-]", "_", stem)
-    return stem[:120]  # cap length
+def prepare_dataset(name: str, limit: int = 25) -> dict:
+    """Build Q&A ground truth for a single dataset.
 
-
-def prepare_dataset(name: str) -> dict:
-    """Prepare a single dataset.
+    Matches each test item's source file_path against files actually present
+    in data/raw/{name}/. Only pairs with an existing corpus file are included.
 
     Args:
         name: Dataset name (e.g., 'cuad').
+        limit: Max number of Q&A pairs to emit. 0 = no limit.
 
     Returns:
         Stats dict.
     """
     source_path = PROJECT_ROOT / "data" / "data_source" / f"{name}.json"
+    raw_dir = PROJECT_ROOT / "data" / "raw" / name
+
     if not source_path.exists():
         logger.error(f"Source file not found: {source_path}")
         return {}
+
+    if not raw_dir.exists():
+        logger.warning(f"Corpus directory missing: {raw_dir} — skipping {name}")
+        return {}
+
+    # Build a lookup of filenames actually present in the corpus
+    existing_files = {f.name for f in raw_dir.iterdir() if f.is_file()}
+    logger.info(f"[{name}] Found {len(existing_files)} corpus files in {raw_dir}")
 
     with open(source_path, encoding="utf-8") as f:
         data = json.load(f)
 
     tests = data["tests"]
-    logger.info(f"[{name}] Loaded {len(tests)} test items")
+    logger.info(f"[{name}] Loaded {len(tests)} test items from benchmark JSON")
 
-    # --- Step 1: Build document corpus ---
-    # Group all snippets by their source file_path
-    doc_snippets: dict[str, list[str]] = defaultdict(list)
-    for item in tests:
-        for snippet in item["snippets"]:
-            file_path = snippet["file_path"]
-            answer_text = snippet.get("answer", "").strip()
-            if answer_text and answer_text not in doc_snippets[file_path]:
-                doc_snippets[file_path].append(answer_text)
-
-    # Write one .txt per unique source document
-    raw_dir = PROJECT_ROOT / "data" / "raw" / name
-    raw_dir.mkdir(parents=True, exist_ok=True)
-
-    for file_path, passages in doc_snippets.items():
-        safe_name = sanitize_filename(file_path) + ".txt"
-        out_path = raw_dir / safe_name
-        with open(out_path, "w", encoding="utf-8") as f:
-            f.write("\n\n".join(passages))
-
-    logger.info(f"[{name}] Wrote {len(doc_snippets)} document files to {raw_dir}")
-
-    # --- Step 2: Build ground truth Q&A pairs ---
     qa_pairs = []
+    skipped_missing = 0
+
     for item in tests:
+        if limit and len(qa_pairs) >= limit:
+            break
+
         question = item["query"].strip()
-        # Combine all snippet answers as the ground truth answer
-        answers = [s.get("answer", "").strip() for s in item["snippets"] if s.get("answer", "").strip()]
-        if not answers:
+        if not question:
             continue
 
-        combined_answer = " ".join(answers)
-        source_docs = list({s["file_path"] for s in item["snippets"]})
+        # Check that at least one source document exists in the corpus
+        resolved_sources = []
+        for snippet in item["snippets"]:
+            doc_name = Path(snippet["file_path"]).name
+            if doc_name in existing_files:
+                resolved_sources.append(doc_name)
+
+        if not resolved_sources:
+            skipped_missing += 1
+            continue
+
+        # Ground truth answer: concatenate all snippet answers
+        answers = [
+            s.get("answer", "").strip()
+            for s in item["snippets"]
+            if s.get("answer", "").strip()
+        ]
+        combined_answer = " ".join(answers) if answers else ""
 
         qa_pairs.append({
             "question": question,
             "answer": combined_answer,
-            "source_docs": source_docs,
+            "source_docs": list(dict.fromkeys(resolved_sources)),  # deduplicated, ordered
         })
 
+    if skipped_missing:
+        logger.warning(f"[{name}] Skipped {skipped_missing} items (source doc not in corpus)")
+
+    # Save
     gt_dir = PROJECT_ROOT / "data" / "ground_truth"
     gt_dir.mkdir(parents=True, exist_ok=True)
     gt_path = gt_dir / f"{name}_qa.json"
@@ -113,23 +119,31 @@ def prepare_dataset(name: str) -> dict:
     with open(gt_path, "w", encoding="utf-8") as f:
         json.dump(qa_pairs, f, ensure_ascii=False, indent=2)
 
-    logger.info(f"[{name}] Wrote {len(qa_pairs)} Q&A pairs to {gt_path}")
+    label = f"{len(qa_pairs)}" + (" (limited)" if limit and len(qa_pairs) == limit else "")
+    logger.info(f"[{name}] Wrote {label} Q&A pairs → {gt_path}")
 
     return {
         "dataset": name,
-        "tests": len(tests),
-        "unique_docs": len(doc_snippets),
+        "corpus_files": len(existing_files),
+        "benchmark_tests": len(tests),
         "qa_pairs": len(qa_pairs),
+        "skipped_missing": skipped_missing,
     }
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Prepare benchmark datasets for PromptoMizer")
+    parser = argparse.ArgumentParser(description="Prepare benchmark Q&A ground truth for PromptoMizer")
     parser.add_argument(
         "--dataset",
         choices=DATASETS,
         default=None,
         help="Prepare a single dataset (default: all)",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=25,
+        help="Max Q&A pairs per dataset. 0 = no limit (default: 25)",
     )
     args = parser.parse_args()
 
@@ -137,33 +151,34 @@ def main():
     logger.add(sys.stderr, level="INFO", format="{time:HH:mm:ss} | {level:<7} | {message}")
 
     targets = [args.dataset] if args.dataset else DATASETS
+    limit_label = str(args.limit) if args.limit else "unlimited"
 
     logger.info("=" * 60)
-    logger.info("Dataset Preparation")
+    logger.info(f"Dataset Preparation  (limit={limit_label} pairs per dataset)")
     logger.info("=" * 60)
 
     all_stats = []
     for name in targets:
-        stats = prepare_dataset(name)
+        stats = prepare_dataset(name, limit=args.limit)
         if stats:
             all_stats.append(stats)
 
-    # Summary
     logger.info("\n" + "=" * 60)
     logger.info("SUMMARY")
     logger.info("=" * 60)
-    total_qa = 0
-    total_docs = 0
     for s in all_stats:
         logger.info(
-            f"  {s['dataset']:15s} | {s['unique_docs']:4d} docs | {s['qa_pairs']:5d} Q&A pairs"
+            f"  {s['dataset']:15s} | {s['corpus_files']:4d} corpus docs "
+            f"| {s['qa_pairs']:4d} Q&A pairs"
+            + (f" | {s['skipped_missing']} skipped" if s["skipped_missing"] else "")
         )
-        total_qa += s["qa_pairs"]
-        total_docs += s["unique_docs"]
-    logger.info(f"  {'TOTAL':15s} | {total_docs:4d} docs | {total_qa:5d} Q&A pairs")
     logger.info("=" * 60)
+
+    if args.limit:
+        logger.info(f"Tip: re-run with --limit 0 to use all available pairs")
     logger.info("Next: python main.py pipeline --domain <dataset_name>")
 
 
 if __name__ == "__main__":
     main()
+
